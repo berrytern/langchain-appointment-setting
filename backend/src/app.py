@@ -50,10 +50,11 @@ examples = [
     {"input": "List all professionals.", "query": "SELECT * FROM professional;"},
     {"input": "List all messages.", "query": "SELECT * FROM message;"},
     {"input": "List all people.", "query": "SELECT * FROM person;"},
+    {"input": "Get person by wpp_number.", "query": "SELECT * FROM person WHERE person.wpp_number = <wpp_number> LIMIT 1;"},
     {"input": "Update email field with value '<email_value>' of person with wpp_number <wpp_number>.", "query": "UPDATE person email = '<email_value>' WHERE wpp_number = '<wpp_number>';"},
-    {"input": "Create an professional with username field with value '<username_value>'.", "query": "INSERT INTO professional (username) VALUES ('<username_value>');"},
+    {"input": "Create an professional with username field with value '<username_value>'.", "query": "INSERT INTO professional (id, username) VALUES (gen_random_uuid(), '<username_value>');"},
     {"input": "List all appointments of professional '<username_value>' on the date '2024-04-15'", "query": "SELECT p.*, a.start_time, a.available FROM professional p INNER JOIN appointment a ON p.id = a.professional_id WHERE p.username = '<username_value>' AND a.start_time >= '2024-04-15 00:00:00' AND a.start_time < '2024-04-16 00:00:00';"},
-    {"input": "Create an appointment of professional '<username_value>' on the datetime '2024-04-15 10:30:00' with status available", "query": "SELECT p.*, a.start_time, a.available FROM professional p INNER JOIN appointment a ON p.id = a.professional_id WHERE p.username = '<username_value>' AND a.start_time >= '2024-04-15 00:00:00' AND a.start_time < '2024-04-16 00:00:00';"},
+    {"input": "Create an appointment of professional '<username_value>' on the datetime '2024-04-15 10:30:00' with status available", "query": "INSERT INTO appointment (id, start_time, available, professional_id, person_id)))  VALUES (gen_random_uuid(), '<start_time>', '<available>', <professional_id>, <person_id>);"},
 ]
 
 example_selector = SemanticSimilarityExampleSelector.from_examples(
@@ -67,9 +68,16 @@ example_selector = SemanticSimilarityExampleSelector.from_examples(
 system_prefix = """You are an agent designed to interact with a SQL database and help people on appointment setting.
 Given an input, agent must verify step by steps if the user do not provided the necessary information you ask him, agent cannot jump over steps that requires user input. You should avoid ask the user about informations already gived.
 The agent must hide to user that he interacts with database, so, the user must think on agent as an real attendant and the agent will do it best to user finish the appointment setting.
-when answering about query, table or database, remember that you are an attendant, a real person, and just ask for the user what he need to know to proceed with the appointment setting steps.
+When answering to the user about query, table or database, remember that you are an attendant, a real person, and just ask for the user what he need to know to proceed with the appointment setting steps.
+When you need to interact with the database, do it, but you dont need to give details about that to the user.
 
-before go into this steps the agent must know the usual format of an email
+Roles:
+  - always use the database to retrieve information
+  - if the information is not there, feed the table.
+
+Previous knowlege required:
+  - know the email format looks like;
+  - an attendant must be proactive and be sure the whole process is persisted on the database;
 
 number | Step
 1 | agent verify if the person has email filled, if was not provided yet, agent should ask the user to provide email information.
@@ -80,6 +88,12 @@ number | Step
 6 | agent must provide the available of professional on the given period and ask for confirmation in case of availability 
 7 | user must confirm the date and agent must update the appointment with available setted as False
 8 | agent must say if the appointment setting was successful 
+
+
+Database interaction:
+  - update email field of person with the provided email
+  - create professional if not exists on the database;
+  - create appointment if not exists on the database;
 
 Agent must priorize more ask for filling of fields than share the status of step, try to proceed to next step when check pass successfully.
 Try always check the information needed from nexts steps and ask for the user to give the information.
@@ -94,7 +108,7 @@ Only use the given tools. Only use the information returned by the tools know ab
 You MUST double check your query before executing it. If you get an error while executing a query, rewrite the query and try again.
 Just query tables that already exist on the database.
 
-
+When saving a new professional, remember of the field id, it must be filled with the gen_random_uuid() value.
 """
 
 few_shot_prompt = FewShotPromptTemplate(
@@ -114,6 +128,7 @@ full_prompt = ChatPromptTemplate.from_messages(
     [
         SystemMessagePromptTemplate(prompt=few_shot_prompt),
         MessagesPlaceholder(variable_name="chat_history", optional=False),
+        HumanMessage(content="{input}"),
         MessagesPlaceholder("agent_scratchpad"),
     ]
 )
@@ -123,7 +138,7 @@ full_prompt = ChatPromptTemplate.from_messages(
 async def startup_event():
     global agent_executor
     await init_models()
-    db = SQLDatabase.from_uri("postgresql://admin:admin@localhost/appointment")
+    db = SQLDatabase.from_uri("postgresql://admin:admin@"+settings.POSTGRES_HOST+"/appointment")
     agent_executor = create_sql_agent(llm, db=db, agent_type="openai-tools", prompt=full_prompt,verbose=True)
     
 
@@ -142,11 +157,13 @@ async def chat(chat_input: ChatInputModel, wpp_number: str):
         chat_history = [
             # *prompt_val.messages,
             *[HumanMessage(content="my whatsapp number is:" + wpp_number)],
-            *[HumanMessage(content=message.content) if message.origin == "human" else AIMessage(content=message.content) for message in messages]
+            *[HumanMessage(content=message.content) if message.origin == "human" else AIMessage(content=message.content) for message in messages],
+            HumanMessage(content=chat_input.message)
         ]
         print(chat_history)
         #print(input_messages)
         await repo.add_message(wpp_number, origin="human", content=chat_input.message)
         response = agent_executor.invoke({"input": chat_input.message, "chat_history": chat_history})
         await repo.add_message(wpp_number, origin="ai", content=response["output"])
-    return response["output"]   
+    response = [*[{"human": message.content} if isinstance(message, HumanMessage) else {"ai": message.content} for message in chat_history], {"ai": response["output"]}]
+    return response

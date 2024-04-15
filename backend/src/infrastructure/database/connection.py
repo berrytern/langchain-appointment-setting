@@ -1,9 +1,9 @@
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from .schemas import Base
+from src.utils import settings
 
-
-engine =  create_async_engine("postgresql+asyncpg://admin:admin@localhost/appointment")
+engine =  create_async_engine("postgresql+asyncpg://admin:admin@"+settings.POSTGRES_HOST+"/appointment")
 
 SessionLocal = async_sessionmaker(autocommit=False, autoflush=False, bind=engine, expire_on_commit=False)
 

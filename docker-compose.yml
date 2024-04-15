@@ -1,11 +1,29 @@
 version: '3.8'
 services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: db
+    environment:
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_DB=${POSTGRES_DB}
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    logging:
+      driver: json-file
+      options:
+        max-size: 100m
   backend:
     build: ./backend
     container_name: backend
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - PORT=${PORT}
+      - POSTGRES_HOST=${POSTGRES_HOST}
     ports:
       - ${PORT}:${PORT}
     networks:
@@ -14,20 +32,23 @@ services:
       driver: json-file
       options:
         max-size: 100m
-#  web-app:
-#    build: ./frontend
-#    container_name: web-app
-#    ports:
-#      - 80:80
-#    networks:
-#      - app-network
-#    logging:
-#      driver: json-file
-#      options:
-#        max-size: 100m
+  web-app:
+    build: ./frontend
+    container_name: web-app
+    ports:
+      - 80:80
+    networks:
+      - app-network
+    logging:
+      driver: json-file
+      options:
+        max-size: 100m
 
+volumes:
+  postgres-data:
+      name: postgres
 
 networks:
   app-network:
     name: app-network
-    driver: bridge
+    driver: bridge 
