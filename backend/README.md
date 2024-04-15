@@ -1,6 +1,9 @@
 # FastAPI Translation Service
 
 This project demonstrates how to build a attendant for appointment setting using Python 3.11+ and FastAPI, leveraging OpenAPI models for achaive the main goal.
+## Prerequisites
+- [Python 3.11+](https://www.python.org/downloads/)
+
 
 ### Initial setup
 
@@ -8,6 +11,15 @@ This project demonstrates how to build a attendant for appointment setting using
     ```sh
     git clone https://github.com/berrytern/langchain-appointment-setting.git
     cd langchain-appointment-setting
+    ```
+- Create a virtual environment and activate it:
+    ```sh
+    python -m venv dev_env # Create virtual environment
+    . dev_env/bin/activate # Activate the virtual environment
+    ```
+- Install dependencies:
+    ```sh
+    pip install -r requirements.txt
     ```
 
 ### Usage
@@ -19,10 +31,7 @@ This project demonstrates how to build a attendant for appointment setting using
     - Copy the .env.example file to .env
     - Add your ChatOpenApi API key to .env file.
 
-- Run the services:
+- Run the FastAPI app:
     ```sh
-    docker compose up -d 
+    python server.py
     ```
-
-- Access the web-site:
-    http://localhost:80
