@@ -1,0 +1,1 @@
+from .v1.appointment_route import V1_APPOINTMENT_ROUTER

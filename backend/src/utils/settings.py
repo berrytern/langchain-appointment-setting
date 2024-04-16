@@ -3,6 +3,7 @@ import os
 
 dotenv.load_dotenv()
 
+
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "admin")
 POSTGRES_USER = os.getenv("POSTGRES_USER", "admin")
