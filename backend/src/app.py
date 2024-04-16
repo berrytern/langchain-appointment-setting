@@ -5,10 +5,10 @@ from src.utils import settings
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langchain.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 from langchain_community.vectorstores import FAISS
+from langchain_community.utilities import SQLDatabase
+from langchain_community.agent_toolkits import create_sql_agent
 from langchain_core.example_selectors import SemanticSimilarityExampleSelector
-from langchain_openai import OpenAIEmbeddings
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.prompts import (
     ChatPromptTemplate,
@@ -17,8 +17,7 @@ from langchain_core.prompts import (
     PromptTemplate,
     SystemMessagePromptTemplate,
 )
-from langchain_community.utilities import SQLDatabase
-from langchain_community.tools.sql_database.tool import QuerySQLDataBaseTool
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from operator import itemgetter
 
 
@@ -39,7 +38,6 @@ app.add_middleware(
 
 llm = ChatOpenAI(api_key=settings.OPENAI_API_KEY, model_name="gpt-4-turbo-2024-04-09")
 
-from langchain_community.agent_toolkits import create_sql_agent
 
 write_query = None
 agent_executor = None
@@ -160,10 +158,10 @@ async def chat(chat_input: ChatInputModel, wpp_number: str):
             *[HumanMessage(content=message.content) if message.origin == "human" else AIMessage(content=message.content) for message in messages],
             HumanMessage(content=chat_input.message)
         ]
-        print(chat_history)
         #print(input_messages)
         await repo.add_message(wpp_number, origin="human", content=chat_input.message)
         response = agent_executor.invoke({"input": chat_input.message, "chat_history": chat_history})
         await repo.add_message(wpp_number, origin="ai", content=response["output"])
     response = [*[{"human": message.content} if isinstance(message, HumanMessage) else {"ai": message.content} for message in chat_history], {"ai": response["output"]}]
     return response
+

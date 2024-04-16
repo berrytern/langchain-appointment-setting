@@ -1,4 +1,4 @@
-# FastAPI Translation Service
+# FastAPI Attendant  Service
 
 This project demonstrates how to build a attendant for appointment setting using Python 3.11+ and FastAPI, leveraging OpenAPI models for achaive the main goal.
 
