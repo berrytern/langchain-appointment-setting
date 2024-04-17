@@ -1,11 +1,13 @@
 import logo from './logo.svg';
 import './App.css';
-import AppointmentChat from './components/appointment.chat'
+import AppointmentChatV1 from './components/appointment.chat.v1'
+import AppointmentChatV2 from './components/appointment.chat.v2'
 
 function App() {
   return (
     <div className="App">
-      <AppointmentChat/>
+      <AppointmentChatV1/>
+      <AppointmentChatV2/>
     </div>
   );
 }
