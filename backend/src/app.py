@@ -1,5 +1,5 @@
 from src.infrastructure.database.connection import init_models
-from src.routes import V1_APPOINTMENT_ROUTER
+from src.routes import V1_APPOINTMENT_ROUTER, V2_APPOINTMENT_ROUTER
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -33,6 +33,7 @@ async def add_middleware(request: Request, call_next):
     return response'''
 
 app.include_router(V1_APPOINTMENT_ROUTER, prefix="/v1")
+app.include_router(V2_APPOINTMENT_ROUTER, prefix="/v2")
 
 @app.on_event("startup")
 async def startup_event():

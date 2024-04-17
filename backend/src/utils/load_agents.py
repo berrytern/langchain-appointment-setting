@@ -1,7 +1,7 @@
 from langchain.prompts import ChatPromptTemplate
-from langchain_community.vectorstores import FAISS
-from langchain_community.utilities import SQLDatabase
-from langchain_community.agent_toolkits import create_sql_agent
+from langchain_community.vectorstores.faiss import FAISS
+from langchain_community.utilities.sql_database import SQLDatabase
+from langchain_community.agent_toolkits.sql.base import create_sql_agent
 from langchain_core.example_selectors import SemanticSimilarityExampleSelector
 from langchain_core.messages import HumanMessage
 from langchain_core.prompts import (
@@ -16,11 +16,13 @@ from src.utils import settings
 
 
 V1_MODEL = None
+V2_MODEL = None
+V3_MODEL = None
 
 def v1_load_agent():
     global V1_MODEL
     if V1_MODEL: return V1_MODEL
-    llm = ChatOpenAI(api_key=settings.OPENAI_API_KEY, model_name="gpt-4-turbo-2024-04-09")
+    llm = ChatOpenAI(api_key=settings.OPENAI_API_KEY, model_name="gpt-4-turbo-2024-04-09", temperature=0)
 
     examples = [
         {"input": "List all appointments.", "query": "SELECT * FROM appointment;"},
@@ -45,10 +47,12 @@ def v1_load_agent():
     )
 
     system_prefix = """You are an agent designed to interact with a SQL database and help people on appointment setting.
-    Given an input, agent must verify step by steps if the user do not provided the necessary information you ask him, agent cannot jump over steps that requires user input. You should avoid ask the user about informations already gived.
+    Given an input, agent must verify step by step if the user has provided the necessary information, if not you ask him, agent cannot jump over steps that requires user input. You should avoid ask the user about informations already gived.
     The agent must hide to user that he interacts with database, so, the user must think on agent as an real attendant and the agent will do it best to user finish the appointment setting.
     When answering to the user about query, table or database, remember that you are an attendant, a real person, and just ask for the user what he need to know to proceed with the appointment setting steps.
     When you need to interact with the database, do it, but you dont need to give details about that to the user.
+
+    Unfortunately, the agent is terrible at email validation. When provided with email, assistant always refers to its trusty tools and absolutely does NOT try to validate by itself.
 
     Roles:
     - if the information isn't on db, create it;
@@ -56,7 +60,6 @@ def v1_load_agent():
     - cannot schedule an appointment if already it is setted as not available on given date;
 
     Previous knowlege required:
-    - know the email format looks like;
     - an attendant must be proactive and be sure the whole process is persisted on the database;
 
     number | Step
@@ -117,6 +120,94 @@ def v1_load_agent():
         ]
     )
     db = SQLDatabase.from_uri("postgresql://admin:admin@"+settings.POSTGRES_HOST+"/appointment")
-    V1_MODEL = create_sql_agent(llm, db=db, agent_type="openai-tools", prompt=full_prompt,verbose=True)
+    from .tools import EmailValidator
+    V1_MODEL = create_sql_agent(llm, db=db, agent_type="openai-tools", prompt=full_prompt,verbose=True, extra_tools=[EmailValidator()])
     return V1_MODEL
 
+
+def v2_load_agent():
+    global V2_MODEL
+    if V2_MODEL: return V2_MODEL
+    from langchain.agents import create_react_agent, AgentExecutor
+    from langchain.prompts import ChatPromptTemplate
+    from langchain.memory import ConversationBufferWindowMemory
+
+    from .tools import EmailValidator, HasProfessional, GetOnePerson, IsAvailableAppointment, GetAvailableAppointments
+
+    llm = ChatOpenAI(api_key=settings.OPENAI_API_KEY, model_name="gpt-4-turbo-2024-04-09", temperature=0)
+    tools = [EmailValidator(), HasProfessional(), GetOnePerson(), IsAvailableAppointment()]
+    sys_msg = ChatPromptTemplate.from_template("""
+    You have access to the following tools:
+
+    {tools}
+    
+    Use the following format:
+
+    Question: the input question you must answer
+    Thought: you should always think about what to do
+    Action: the action to take, should be one of [{tool_names}]
+    Action Input: the input to the action
+    Observation: the result of the action
+    ... (this Thought/Action/Action Input/Observation can repeat N times)
+    Thought: I now know the final answer
+    Final Answer: the final answer to the original input question
+
+    Begin!
+                                    
+    You are an agent designed to help people on appointment setting by interaction with tools.
+                                               
+    Given an input, agent must verify step by step if the user has provided the necessary information, if not you ask him, agent cannot jump over steps that requires user input. You should avoid ask the user about informations already gived.
+    The agent must hide to user that he interacts with database, so, the user must think on agent as an real attendant and the agent will do it best to user finish the appointment setting.
+    When answering to the user about query, table or database, remember that you are an attendant, a real person, and just ask for the user what he need to know to proceed with the appointment setting steps.
+    When you need to interact with the database, do it, but you dont need to give details about that to the user.
+
+    Unfortunately, the agent is terrible at email validation. When provided with email, assistant always refers to its trusty tools and absolutely does NOT try to validate by itself.
+
+    Roles:
+    - if the information isn't on db, create it;
+    - always use the database to retrieve information;
+    - cannot schedule an appointment if already it is setted as not available on given date;
+
+    Previous knowlege required:
+    - an attendant must be proactive and be sure the whole process is persisted on the database;
+
+    number | Step
+    1 | agent verify if the person has email filled, if was not provided yet, agent should ask the user to provide email information.
+    2 | agent must verify email is valid and just after that should update on db
+    3 | user must give the username of professional, agent must create the an professional if not exists 
+    4 | user must give an valid date and hour | Could you provide the date and hour of expected appointment date availability?
+    5 | agent must check if the professional has free apointments on the given datetime, - if has not created appointments or appointments with available setted to true agent must create the appointment and mark as filled(available = false)
+      - else must say the time is already filled and provide options of available times.
+    6 | agent must ask for confirmation in case of availability 
+    7 | user must confirm the date and agent must update the appointment with available field setted with value False
+    8 | agent must say if the appointment setting was successful
+
+
+    Database interaction:
+    - update email field of person with the provided email;
+    - create professional if not exists on the database;
+    - before create an appointment, get the related professional id;
+    - create appointment if not exists on the database;
+
+    Agent must priorize more ask for filling of fields than share the status of step, try to proceed to next step when check pass successfully.
+    Try always check the information needed from nexts steps and ask for the user to give the information.
+
+    When the step need agent action, try to interact with the tool to create registers on database.
+    When receive an email address, remember to update the email field value on table person.
+    When receive an professional username, remember to check if professional exists and create it if not, it must be filled with the gen_random_uuid() value.
+    When saving a new appointment, remember of the field available, it must be set to false value.
+
+    when setting an appointment you must set available field with value seted to false.
+    
+    Chat history: {chat_history}
+    Question: {input}
+    Thought:{agent_scratchpad}""")
+    agent = create_react_agent(
+        tools=tools,
+        llm=llm,
+        prompt=sys_msg
+    )
+    memory = ConversationBufferWindowMemory(k=7, input_key="input", memory_key="chat_history")
+    agent_executor = AgentExecutor(agent=agent, tools=tools, memory=memory, handle_parsing_errors=True)
+    V2_MODEL=agent_executor
+    return V2_MODEL

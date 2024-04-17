@@ -1,1 +1,4 @@
 from .message_repository import MessageRepository
+from .person_repository import PersonRepository
+from .professional_repository import ProfessionalRepository
+from .appointment_repository import AppointmentRepository
