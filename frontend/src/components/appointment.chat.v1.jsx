@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ChatMessages from './chat.messages';
-import {sendMessage} from '../services/appointment.service';
+import {sendMessage} from '../services/appointment.v1.service';
 
 
 function AppointmentChat(props) {
@@ -29,7 +29,7 @@ function AppointmentChat(props) {
 
     return (
       <div className="chat">
-        Appointment
+        Appointment v1
         <br/><input
             value={wppNumber}
             onChange={handleWppChange}
