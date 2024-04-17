@@ -1,5 +1,5 @@
 from typing import Type
-from langchain.tools import BaseTool, StructuredTool
+from langchain.tools import BaseTool, StructuredTool, tool
 from src.infrastructure.database.connection import get_db
 from src.infrastructure.repositories import (
     PersonRepository,
@@ -136,6 +136,15 @@ is_appointment_available_tool = StructuredTool.from_function(
     return_direct=True,
     coroutine=is_appointment_available,
 )
+
+
+@tool
+async def is_appointment_available2(professional_id: str, appointment_datetime: str):
+    """Use professional_id: str and appointment_datetime: str as args and returns bool"""
+    async with get_db() as session:
+        return await AppointmentRepository(session).is_available(
+            professional_id, appointment_datetime
+        )
 
 
 class IsAvailableAppointment(BaseTool):
