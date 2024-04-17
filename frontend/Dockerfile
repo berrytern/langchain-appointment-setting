@@ -5,10 +5,11 @@ RUN mkdir -p /usr/src/web-app
 WORKDIR /usr/src/web-app
 
 # Copy app source
-COPY . /usr/src/web-app
 
+COPY package.json /usr/src/web-app
 # Install dependencies
 RUN npm install
+COPY . /usr/src/web-app
 EXPOSE 80
 EXPOSE 443
 

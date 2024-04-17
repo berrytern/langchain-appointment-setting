@@ -11,6 +11,7 @@ class Professional(Base):
     id = Column(UUID(as_uuid=True), primary_key=True,
                 default=uuid.uuid4, index=True)
     username = Column(String(60))
+    aux_id = Column(String(60))
 
     def __repr__(self) -> str:
         return '{"id": "' + str(self.id) + '", "username": "' + self.username+'"}'
