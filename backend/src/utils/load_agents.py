@@ -1,4 +1,3 @@
-from langchain.prompts import ChatPromptTemplate
 from langchain_community.vectorstores.faiss import FAISS
 from langchain_community.utilities.sql_database import SQLDatabase
 from langchain_community.agent_toolkits.sql.base import create_sql_agent
@@ -19,23 +18,59 @@ V1_MODEL = None
 V2_MODEL = None
 V3_MODEL = None
 
+
 def v1_load_agent():
     global V1_MODEL
-    if V1_MODEL: return V1_MODEL
-    llm = ChatOpenAI(api_key=settings.OPENAI_API_KEY, model_name="gpt-4-turbo-2024-04-09", temperature=0)
+    if V1_MODEL:
+        return V1_MODEL
+    llm = ChatOpenAI(
+        api_key=settings.OPENAI_API_KEY,
+        model_name="gpt-4-turbo-2024-04-09",
+        temperature=0,
+    )
 
     examples = [
         {"input": "List all appointments.", "query": "SELECT * FROM appointment;"},
-        {"input": "Get professional by username.", "query": "SELECT * FROM professional WHERE professional.username = <username>;"},
-        {"input": "Get person by wpp_number.", "query": "SELECT * FROM person WHERE person.wpp_number = <wpp_number> LIMIT 1;"},
-        {"input": "Update email field with value '<email_value>' of person with wpp_number <wpp_number>.", "query": "UPDATE person email = '<email_value>' WHERE wpp_number = '<wpp_number>';"},
-        {"input": "Create an professional with username field with value '<username_value>'.", "query": "INSERT INTO professional (id, username) VALUES (gen_random_uuid(), '<username_value>');"},
-        {"input": "Verify if appointment on datetime is with status filled", "query": "SELECT available FROM appointment WHERE appointment.available = false and appointment.start_time = '<start_time>'::timestamp;"},
-        {"input": "Verify if appointment on datetime is with status available", "query": "SELECT available FROM appointment WHERE appointment.available = true and appointment.start_time = '<start_time>'::timestamp;"},
-        {"input": "List all appointments of professional '<username_value>' on the date '2024-04-15'", "query": "SELECT p.*, a.start_time, a.available FROM professional p INNER JOIN appointment a ON p.id = a.professional_id WHERE p.username = '<username_value>' AND a.start_time >= '2024-04-15 00:00:00' AND a.start_time < '2024-04-16 00:00:00';"},
-        {"input": "Create an appointment of professional '<username_value>' on the datetime '2024-04-15 10:30:00' with status available", "query": "INSERT INTO appointment (id, start_time, available, professional_id)  VALUES (gen_random_uuid(), '<start_time>', true, UUID('<professional_id>'));"},
-        {"input": "Create an appointment of professional '<username_value>' on the datetime '2024-04-15 10:30:00' with status filled", "query": "INSERT INTO appointment (id, start_time, available, professional_id)  VALUES (gen_random_uuid(), '<start_time>', false, UUID('<professional_id>'));"},
-        {"input": "Update the appointment availability by <professional_id> and <start_date> setting status as filled", "query": "UPDATE appointment SET available = false WHERE appointment.professional_id = UUID('<professional_id>') AND appointment.start_time = '<start_time>'::timestamp; "},
+        {
+            "input": "Get professional by username.",
+            "query": "SELECT * FROM professional WHERE professional.username = <username>;",
+        },
+        {
+            "input": "Get person by wpp_number.",
+            "query": "SELECT * FROM person WHERE person.wpp_number = <wpp_number> LIMIT 1;",
+        },
+        {
+            "input": "Update email field with value '<email_value>' of person with wpp_number <wpp_number>.",
+            "query": "UPDATE person email = '<email_value>' WHERE wpp_number = '<wpp_number>';",
+        },
+        {
+            "input": "Create an professional with username field with value '<username_value>'.",
+            "query": "INSERT INTO professional (id, username) VALUES (gen_random_uuid(), '<username_value>');",
+        },
+        {
+            "input": "Verify if appointment on datetime is with status filled",
+            "query": "SELECT available FROM appointment WHERE appointment.available = false and appointment.start_time = '<start_time>'::timestamp;",
+        },
+        {
+            "input": "Verify if appointment on datetime is with status available",
+            "query": "SELECT available FROM appointment WHERE appointment.available = true and appointment.start_time = '<start_time>'::timestamp;",
+        },
+        {
+            "input": "List all appointments of professional '<username_value>' on the date '2024-04-15'",
+            "query": "SELECT p.*, a.start_time, a.available FROM professional p INNER JOIN appointment a ON p.id = a.professional_id WHERE p.username = '<username_value>' AND a.start_time >= '2024-04-15 00:00:00' AND a.start_time < '2024-04-16 00:00:00';",
+        },
+        {
+            "input": "Create an appointment of professional '<username_value>' on the datetime '2024-04-15 10:30:00' with status available",
+            "query": "INSERT INTO appointment (id, start_time, available, professional_id)  VALUES (gen_random_uuid(), '<start_time>', true, UUID('<professional_id>'));",
+        },
+        {
+            "input": "Create an appointment of professional '<username_value>' on the datetime '2024-04-15 10:30:00' with status filled",
+            "query": "INSERT INTO appointment (id, start_time, available, professional_id)  VALUES (gen_random_uuid(), '<start_time>', false, UUID('<professional_id>'));",
+        },
+        {
+            "input": "Update the appointment availability by <professional_id> and <start_date> setting status as filled",
+            "query": "UPDATE appointment SET available = false WHERE appointment.professional_id = UUID('<professional_id>') AND appointment.start_time = '<start_time>'::timestamp; ",
+        },
     ]
 
     example_selector = SemanticSimilarityExampleSelector.from_examples(
@@ -65,11 +100,11 @@ def v1_load_agent():
     number | Step
     1 | agent verify if the person has email filled, if was not provided yet, agent should ask the user to provide email information.
     2 | agent must verify email is valid and just after that should update on db
-    3 | user must give the username of professional, agent must create the an professional if not exists 
+    3 | user must give the username of professional, agent must create the an professional if not exists
     4 | user must give an valid date and hour | Could you provide the date and hour of expected appointment date availability?
     5 | agent must check if the professional has free apointments on the given datetime, - if has not created appointments or appointments with available setted to true agent must create the appointment and mark as filled(available = false)
       - else must say the time is already filled and provide options of available times.
-    6 | agent must ask for confirmation in case of availability 
+    6 | agent must ask for confirmation in case of availability
     7 | user must confirm the date and agent must update the appointment with available field setted with value False
     8 | agent must say if the appointment setting was successful
 
@@ -110,7 +145,6 @@ def v1_load_agent():
         suffix="",
     )
 
-
     full_prompt = ChatPromptTemplate.from_messages(
         [
             SystemMessagePromptTemplate(prompt=few_shot_prompt),
@@ -119,28 +153,55 @@ def v1_load_agent():
             MessagesPlaceholder("agent_scratchpad"),
         ]
     )
-    db = SQLDatabase.from_uri("postgresql://admin:admin@"+settings.POSTGRES_HOST+"/appointment")
+    db = SQLDatabase.from_uri(
+        "postgresql://admin:admin@" + settings.POSTGRES_HOST + "/appointment"
+    )
     from .tools import EmailValidator
-    V1_MODEL = create_sql_agent(llm, db=db, agent_type="openai-tools", prompt=full_prompt,verbose=True, extra_tools=[EmailValidator()])
+
+    V1_MODEL = create_sql_agent(
+        llm,
+        db=db,
+        agent_type="openai-tools",
+        prompt=full_prompt,
+        verbose=True,
+        extra_tools=[EmailValidator()],
+    )
     return V1_MODEL
 
 
 def v2_load_agent():
     global V2_MODEL
-    if V2_MODEL: return V2_MODEL
+    if V2_MODEL:
+        return V2_MODEL
     from langchain.agents import create_react_agent, AgentExecutor
     from langchain.prompts import ChatPromptTemplate
-    from langchain.memory import ConversationBufferWindowMemory
+    from langchain.memory import ConversationEntityMemory
 
-    from .tools import EmailValidator, HasProfessional, GetOnePerson, IsAvailableAppointment, GetAvailableAppointments
+    from .tools import (
+        EmailValidator,
+        HasProfessional,
+        GetOnePerson,
+        is_appointment_available_tool,
+        # GetAvailableAppointments,
+    )
 
-    llm = ChatOpenAI(api_key=settings.OPENAI_API_KEY, model_name="gpt-4-turbo-2024-04-09", temperature=0)
-    tools = [EmailValidator(), HasProfessional(), GetOnePerson(), IsAvailableAppointment()]
-    sys_msg = ChatPromptTemplate.from_template("""
+    llm = ChatOpenAI(
+        api_key=settings.OPENAI_API_KEY,
+        model_name="gpt-4-turbo-2024-04-09",
+        temperature=0,
+    )
+    tools = [
+        EmailValidator(),
+        HasProfessional(),
+        GetOnePerson(),
+        is_appointment_available_tool,
+    ]
+    sys_msg = ChatPromptTemplate.from_template(
+        """
     You have access to the following tools:
 
     {tools}
-    
+
     Use the following format:
 
     Question: the input question you must answer
@@ -153,9 +214,9 @@ def v2_load_agent():
     Final Answer: the final answer to the original input question
 
     Begin!
-                                    
+
     You are an agent designed to help people on appointment setting by interaction with tools.
-                                               
+
     Given an input, agent must verify step by step if the user has provided the necessary information, if not you ask him, agent cannot jump over steps that requires user input. You should avoid ask the user about informations already gived.
     The agent must hide to user that he interacts with database, so, the user must think on agent as an real attendant and the agent will do it best to user finish the appointment setting.
     When answering to the user about query, table or database, remember that you are an attendant, a real person, and just ask for the user what he need to know to proceed with the appointment setting steps.
@@ -163,51 +224,43 @@ def v2_load_agent():
 
     Unfortunately, the agent is terrible at email validation. When provided with email, assistant always refers to its trusty tools and absolutely does NOT try to validate by itself.
 
-    Roles:
-    - if the information isn't on db, create it;
-    - always use the database to retrieve information;
-    - cannot schedule an appointment if already it is setted as not available on given date;
-
-    Previous knowlege required:
-    - an attendant must be proactive and be sure the whole process is persisted on the database;
-
-    number | Step
-    1 | agent verify if the person has email filled, if was not provided yet, agent should ask the user to provide email information.
-    2 | agent must verify email is valid and just after that should update on db
-    3 | user must give the username of professional, agent must create the an professional if not exists 
-    4 | user must give an valid date and hour | Could you provide the date and hour of expected appointment date availability?
-    5 | agent must check if the professional has free apointments on the given datetime, - if has not created appointments or appointments with available setted to true agent must create the appointment and mark as filled(available = false)
+    | number | Step |
+    | 1 | agent verify if the person has email filled, if was not provided yet, agent should ask the user to provide email information. |
+    | 2 | agent must verify email is valid and just after that should update on db |
+    | 3 | user must give the username of professional, agent must verify if the professional exists report that it is not registered on 'calendly.com' |
+    | 4 | user must give an valid date and hour and agent must check for availability using proper tool | Could you provide the date and hour of expected appointment date availability? |
+    | 5 | agent must check if the professional has free apointments on the given datetime, - if has not created appointments or appointments with available setted to true agent must create the appointment and mark as filled(available = false)
       - else must say the time is already filled and provide options of available times.
-    6 | agent must ask for confirmation in case of availability 
-    7 | user must confirm the date and agent must update the appointment with available field setted with value False
-    8 | agent must say if the appointment setting was successful
+    | 6 | agent must ask for confirmation in case of availability |
+    | 7 | user must confirm the date and agent must update the appointment with available field setted with value False |
+    | 8 | agent must say if the appointment setting was successful |
 
 
-    Database interaction:
-    - update email field of person with the provided email;
-    - create professional if not exists on the database;
-    - before create an appointment, get the related professional id;
-    - create appointment if not exists on the database;
+    tool interaction:
+    - update email field of person with the provided email - update_person_email;
+    - verify if professional exists - has_professional;
+    - before create an appointment, get the related professional_id - has_professional;
+    - list professionals available - get_all_professionals;
+    - verify if datetime is available to appointment - is_appointment_available;
 
     Agent must priorize more ask for filling of fields than share the status of step, try to proceed to next step when check pass successfully.
     Try always check the information needed from nexts steps and ask for the user to give the information.
 
-    When the step need agent action, try to interact with the tool to create registers on database.
-    When receive an email address, remember to update the email field value on table person.
-    When receive an professional username, remember to check if professional exists and create it if not, it must be filled with the gen_random_uuid() value.
-    When saving a new appointment, remember of the field available, it must be set to false value.
+    When receive an email address, remember to update the email field value of person using tools.
 
     when setting an appointment you must set available field with value seted to false.
-    
+    Tools just receive fields, not phrases.
+
     Chat history: {chat_history}
     Question: {input}
-    Thought:{agent_scratchpad}""")
-    agent = create_react_agent(
-        tools=tools,
-        llm=llm,
-        prompt=sys_msg
+    Thought:{agent_scratchpad}"""
     )
-    memory = ConversationBufferWindowMemory(k=7, input_key="input", memory_key="chat_history")
-    agent_executor = AgentExecutor(agent=agent, tools=tools, memory=memory, handle_parsing_errors=True)
-    V2_MODEL=agent_executor
+    agent = create_react_agent(tools=tools, llm=llm, prompt=sys_msg)
+    memory = ConversationEntityMemory(
+        input_key="input", memory_key="chat_history", k=20, llm=llm
+    )
+    agent_executor = AgentExecutor(
+        agent=agent, tools=tools, memory=memory, handle_parsing_errors=True
+    )
+    V2_MODEL = agent_executor
     return V2_MODEL
